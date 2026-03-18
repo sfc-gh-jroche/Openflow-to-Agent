@@ -1,8 +1,8 @@
--- OpenFlow Runtime Role for Regulatory Intelligence
--- Run this BEFORE creating the OpenFlow runtime in the UI
+-- Openflow Runtime Role for Regulatory Intelligence
+-- Run this BEFORE creating the Openflow runtime in the UI
 
 CREATE ROLE IF NOT EXISTS OPENFLOW_REGINTEL_ROLE 
-  COMMENT = 'OpenFlow runtime role for Regulatory Intelligence platform';
+  COMMENT = 'Openflow runtime role for Regulatory Intelligence platform';
 
 -- Grant access to target database/schema
 GRANT USAGE ON DATABASE REG_INTEL TO ROLE OPENFLOW_REGINTEL_ROLE;

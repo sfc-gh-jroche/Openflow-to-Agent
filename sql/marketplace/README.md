@@ -36,7 +36,7 @@ Once installed, the marketplace SQL scripts create:
 ## Running Without Marketplace Data
 
 If you skip the marketplace enrichment:
-- The core pipeline (OpenFlow → Bronze → Silver → Gold) works normally
+- The core pipeline (Openflow → Bronze → Silver → Gold) works normally
 - Cortex Search works normally
 - The basic semantic view (REG_ANALYTICS_VIEW) works normally
 - The agent will have 2 tools instead of 5 (search + analyze_trends only)

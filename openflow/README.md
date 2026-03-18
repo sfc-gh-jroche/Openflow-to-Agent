@@ -1,4 +1,4 @@
-# OpenFlow: Federal Register Ingestion
+# Openflow: Federal Register Ingestion
 
 ## Overview
 This flow ingests federal regulation documents from the Federal Register API into Snowflake.
@@ -26,10 +26,10 @@ This flow ingests federal regulation documents from the Federal Register API int
 
 ## Important: Flow Template
 
-The `federal_register_flow.json` file is a **reference template** showing the flow structure and configuration. Depending on your OpenFlow version, you may need to:
+The `federal_register_flow.json` file is a **reference template** showing the flow structure and configuration. Depending on your Openflow version, you may need to:
 
 1. **Import directly** - Try importing the JSON; if the format is compatible, it will work
-2. **Recreate manually** - Use the JSON as a guide to build the flow in the OpenFlow UI
+2. **Recreate manually** - Use the JSON as a guide to build the flow in the Openflow UI
 3. **Adjust processor versions** - Bundle versions may differ in your environment
 
 ## Configuration Required After Import
@@ -60,8 +60,8 @@ Default: Every 6 hours (`0 */6 * * *`)
 
 ## Deployment Steps
 
-1. **Create OpenFlow Runtime** in Snowsight:
-   - Go to: Data → Ingestion → OpenFlow
+1. **Create Openflow Runtime** in Snowsight:
+   - Go to: Data → Ingestion → Openflow
    - Create runtime named `regintel`
    - Size: XS (sufficient for this workload)
    - Role: `OPENFLOW_REGINTEL_ROLE`
@@ -85,7 +85,7 @@ Default: Every 6 hours (`0 */6 * * *`)
 
 ## Alternative: Manual Data Loading
 
-If you don't have OpenFlow or prefer not to use it, see `scripts/load_sample_data.sql` for alternative data loading methods.
+If you don't have Openflow or prefer not to use it, see `scripts/load_sample_data.sql` for alternative data loading methods.
 
 ## API Documentation
 - Federal Register API: https://www.federalregister.gov/developers/documentation/api/v1

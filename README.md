@@ -8,7 +8,7 @@ AI-powered platform for monitoring federal regulations, built on Snowflake. Demo
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              DATA INGESTION                                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  OpenFlow (NiFi)                                                            │
+│  Openflow (NiFi)                                                            │
 │  ├── Federal Register API ──► RAW_REGULATIONS (JSON)                       │
 │  └── PDF Documents ──────────► @REGULATION_PDFS (Stage)                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -56,7 +56,7 @@ AI-powered platform for monitoring federal regulations, built on Snowflake. Demo
 
 1. **Snowflake Account** with:
    - Cortex AI functions enabled (most accounts have this)
-   - OpenFlow (optional - can manually load sample data)
+   - Openflow (optional - can manually load sample data)
    - ACCOUNTADMIN or equivalent privileges to create databases/warehouses
 
 2. **Snowflake Marketplace** (optional, for company enrichment):
@@ -71,73 +71,66 @@ AI-powered platform for monitoring federal regulations, built on Snowflake. Demo
 
 ## Quick Start
 
-### 1. Run Infrastructure Setup
+Run each SQL file in **Snowsight** (Worksheets → + → SQL Worksheet → paste contents → Run All).
 
-```bash
-snow sql -f sql/infrastructure/01_database_setup.sql
-snow sql -f sql/infrastructure/02_network_eai.sql
-snow sql -f sql/infrastructure/03_raw_table.sql
-snow sql -f sql/infrastructure/04_openflow_role.sql
-```
+### 1. Infrastructure Setup
 
-### 2. Create Dynamic Tables Pipeline
+Run these files in order:
+1. `sql/infrastructure/01_database_setup.sql` - Creates database, schemas, warehouse
+2. `sql/infrastructure/02_network_eai.sql` - Network rule for API access
+3. `sql/infrastructure/03_raw_table.sql` - Landing table for raw JSON
+4. `sql/infrastructure/04_openflow_role.sql` - Role for Openflow runtime
 
-```bash
-snow sql -f sql/dynamic_tables/01_dt_reg_bronze.sql
-snow sql -f sql/dynamic_tables/02_dt_reg_silver.sql
-snow sql -f sql/dynamic_tables/03_dt_reg_gold.sql
-```
+### 2. Dynamic Tables Pipeline
 
-### 3. Add Marketplace Enrichment (Optional)
+Run these files in order:
+1. `sql/dynamic_tables/01_dt_reg_bronze.sql` - Parse raw JSON
+2. `sql/dynamic_tables/02_dt_reg_silver.sql` - AI enrichment
+3. `sql/dynamic_tables/03_dt_reg_gold.sql` - Final aggregates
+
+### 3. Marketplace Enrichment (Optional)
 
 > **Requires:** `SNOWFLAKE_PUBLIC_DATA_FREE` from Snowflake Marketplace. Skip this section if you don't need company/SEC filing data.
 
-```bash
-snow sql -f sql/marketplace/01_industry_reference.sql
-snow sql -f sql/marketplace/02_company_exposure.sql
-snow sql -f sql/marketplace/03_sec_filings.sql
-snow sql -f sql/marketplace/04_gold_enriched.sql
-snow sql -f sql/marketplace/05_semantic_views.sql
+Run these files in order:
+1. `sql/marketplace/01_industry_reference.sql`
+2. `sql/marketplace/02_company_exposure.sql`
+3. `sql/marketplace/03_sec_filings.sql`
+4. `sql/marketplace/04_gold_enriched.sql`
+5. `sql/marketplace/05_semantic_views.sql`
+
+### 4. Search and Analytics
+
+Run these files:
+1. `cortex_search/reg_search.sql` - Vector search service
+2. `semantic_view/reg_analytics_view.sql` - Semantic view for Cortex Analyst
+
+### 5. PDF Analysis (Optional)
+
+Run these files:
+1. `sql/pdf_analysis/01_pdf_stage.sql` - Create stage for PDFs
+2. `sql/pdf_analysis/02_pdf_function.sql` - AI Q&A function
+
+To upload PDFs, download from Federal Register and use Snowsight's data upload:
+```sql
+-- Find a document number from your data
+SELECT document_number, title FROM REG_INTEL.ANALYTICS.DT_REG_GOLD LIMIT 10;
+
+-- Download PDF from: https://www.govinfo.gov/content/pkg/FR-YYYY-MM-DD/pdf/DOCUMENT_NUMBER.pdf
+-- Then upload via Snowsight: Data → Databases → REG_INTEL → RAW → Stages → REGULATION_PDFS → Upload
 ```
-
-### 4. Set Up Search and Analytics
-
-```bash
-snow sql -f cortex_search/reg_search.sql
-snow sql -f semantic_view/reg_analytics_view.sql
-```
-
-### 5. Set Up PDF Analysis (Optional)
-
-```bash
-snow sql -f sql/pdf_analysis/01_pdf_stage.sql
-snow sql -f sql/pdf_analysis/02_pdf_function.sql
-```
-
-Download and upload regulation PDFs:
-```bash
-# Download a PDF from Federal Register (replace YYYY-NNNNN with any document number)
-curl -o 2026-05312.pdf "https://www.govinfo.gov/content/pkg/FR-2026-03-18/pdf/2026-05312.pdf"
-
-# Upload to Snowflake stage (from SnowSQL or Snowsight)
-PUT file://2026-05312.pdf @REG_INTEL.RAW.REGULATION_PDFS AUTO_COMPRESS=FALSE;
-```
-
-> **Tip:** Find document numbers by querying `REG_INTEL.ANALYTICS.DT_REG_GOLD` or browsing [federalregister.gov](https://www.federalregister.gov)
 
 ### 6. Create the Cortex Agent
 
-```bash
-snow sql -f cortex_agent/reg_intel_agent.sql
-```
+Run: `cortex_agent/reg_intel_agent.sql`
 
 > **Note:** The agent is created in `REG_INTEL.ANALYTICS`. If you have Snowflake Intelligence enabled and want the agent to appear in that UI, edit the script to use `SNOWFLAKE_INTELLIGENCE.AGENTS` instead.
 
-### 7. Deploy OpenFlow (Optional)
+### 7. Deploy Openflow (Optional)
 
-> **Note:** OpenFlow is optional. You can load sample data manually using `scripts/load_sample_data.sql` instead.
+> **Note:** Openflow is optional. You can load sample data manually using `scripts/load_sample_data.sql` instead.
 
-1. Go to Snowsight → Ingestion → OpenFlow
+1. Go to Snowsight → Data → Ingestion → Openflow
 2. Create runtime: `regintel` (XS node, `OPENFLOW_REGINTEL_ROLE`)
 3. Import `openflow/federal_register_flow.json` (or recreate from reference - see `openflow/README.md`)
 4. Configure Snowflake credentials in the flow
@@ -145,10 +138,11 @@ snow sql -f cortex_agent/reg_intel_agent.sql
 
 ### 8. Deploy Streamlit Dashboard
 
-```bash
-cd streamlit
-snow streamlit deploy --database REG_INTEL --schema ANALYTICS
-```
+1. Go to Snowsight → Projects → Streamlit
+2. Click **+ Streamlit App**
+3. Choose database `REG_INTEL`, schema `ANALYTICS`
+4. Copy contents of `streamlit/streamlit_app.py` into the editor
+5. Click **Run**
 
 ## Project Structure
 
@@ -158,7 +152,7 @@ snow streamlit deploy --database REG_INTEL --schema ANALYTICS
 │   │   ├── 01_database_setup.sql      # Database, schemas, warehouse
 │   │   ├── 02_network_eai.sql         # Network rule + external access
 │   │   ├── 03_raw_table.sql           # Landing table for raw JSON
-│   │   └── 04_openflow_role.sql       # Role for OpenFlow runtime
+│   │   └── 04_openflow_role.sql       # Role for Openflow runtime
 │   ├── dynamic_tables/
 │   │   ├── 01_dt_reg_bronze.sql       # Parse raw JSON
 │   │   ├── 02_dt_reg_silver.sql       # AI enrichment (COMPLETE, EXTRACT)
@@ -180,14 +174,14 @@ snow streamlit deploy --database REG_INTEL --schema ANALYTICS
 │   └── reg_intel_agent.sql            # 5-tool Cortex Agent
 ├── openflow/
 │   ├── federal_register_flow.json     # NiFi flow definition
-│   └── README.md                       # OpenFlow setup guide
+│   └── README.md                      # Openflow setup guide
 ├── streamlit/
 │   ├── streamlit_app.py               # Dashboard application
 │   └── snowflake.yml                  # Deployment config
 ├── scripts/
+│   ├── load_sample_data.sql           # Manual data loading (no Openflow)
 │   └── verify_platform.sql            # Verification queries
-├── setup.sql                          # Master setup script
-└── README.md
+└── setup.sql                          # Setup order reference
 ```
 
 ## Agent Capabilities
@@ -230,7 +224,7 @@ The Cortex Agent has 5 tools:
 
 ## Key Patterns Demonstrated
 
-1. **OpenFlow Ingestion** - NiFi-based streaming from REST API
+1. **Openflow Ingestion** - NiFi-based streaming from REST API
 2. **Dynamic Tables** - Declarative transformation pipeline
 3. **Cortex AI Functions** - AI_COMPLETE, AI_EXTRACT for enrichment
 4. **Marketplace Data** - Join with SNOWFLAKE_PUBLIC_DATA_FREE
@@ -238,7 +232,3 @@ The Cortex Agent has 5 tools:
 6. **Semantic Views** - Natural language analytics with Cortex Analyst
 7. **Custom Agent Tools** - UDF for on-demand PDF analysis
 8. **Streamlit in Snowflake** - Interactive dashboard
-
-## License
-
-MIT

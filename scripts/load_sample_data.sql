@@ -1,5 +1,5 @@
 -- Sample Data Loader
--- Use this if you don't have OpenFlow set up
+-- Use this if you don't have Openflow set up
 -- Fetches sample regulations directly from Federal Register API
 
 -- This requires the External Access Integration to be set up first

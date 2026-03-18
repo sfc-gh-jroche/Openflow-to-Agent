@@ -14,7 +14,7 @@
 -- 3. Create landing table for raw JSON
 -- snow sql -f sql/infrastructure/03_raw_table.sql
 
--- 4. Create OpenFlow runtime role (run before creating runtime in UI)
+-- 4. Create Openflow runtime role (run before creating runtime in UI)
 -- snow sql -f sql/infrastructure/04_openflow_role.sql
 
 -- =============================================================================

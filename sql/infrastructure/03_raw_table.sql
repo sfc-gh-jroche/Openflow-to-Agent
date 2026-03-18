@@ -1,4 +1,4 @@
--- RAW_REGULATIONS landing table for OpenFlow ingestion
+-- RAW_REGULATIONS landing table for Openflow ingestion
 
 CREATE OR REPLACE TABLE REG_INTEL.RAW.RAW_REGULATIONS (
     raw_json VARIANT,
