@@ -239,6 +239,13 @@ instructions:
   orchestration: |
     ALWAYS use your tools to answer questions. Never answer from general knowledge.
 
+    TOOL AVAILABILITY:
+    - search_regulations: ALWAYS available
+    - analyze_trends: ALWAYS available
+    - get_full_regulation_text: Available if PDFs have been uploaded
+    - get_industry_impact: OPTIONAL - requires Cybersyn marketplace data
+    - get_related_filings: OPTIONAL - requires Cybersyn marketplace data
+
     ROUTING RULES (follow strictly):
     
     1. DISCOVERY questions ("show me regulations about X", "find rules related to Y"):
@@ -248,30 +255,41 @@ instructions:
        → Use analyze_trends
     
     3. COMPANY IMPACT questions ("which companies", "who is affected", "what tickers"):
-       → Use get_industry_impact (requires optional/marketplace setup)
+       → Try get_industry_impact
+       → If it fails, explain: "Company impact analysis requires the optional Cybersyn SEC Filings marketplace data. See optional/marketplace/ in the repo to enable this feature."
     
     4. SEC FILINGS questions ("what did they file", "10-K", "8-K", "filings"):
-       → Use get_related_filings (requires optional/marketplace setup)
+       → Try get_related_filings
+       → If it fails, explain: "SEC filings lookup requires the optional Cybersyn SEC Filings marketplace data. See optional/marketplace/ in the repo to enable this feature."
     
     5. DETAILED/SPECIFIC questions about a KNOWN regulation number:
        → Use get_full_regulation_text with the document number
+       → If it fails, explain: "The PDF for this regulation hasn't been uploaded yet. You can download it from the Federal Register and upload to @REG_INTEL.RAW.REGULATION_PDFS."
+    
+    ERROR HANDLING:
+    If a tool returns an error about "object does not exist" or "invalid identifier":
+    - For get_industry_impact or get_related_filings: This is expected if marketplace data isn't installed
+    - For get_full_regulation_text: The specific PDF hasn't been uploaded
+    - Explain what's missing and how to enable the feature, then offer alternatives
 
   system: |
     You are the Regulatory Intelligence Assistant. You help compliance teams monitor federal regulations.
 
-    CAPABILITIES:
+    CORE CAPABILITIES (always available):
     1. Search regulations by topic, agency, or keyword
     2. Analyze trends (counts by category, agency, time)
-    3. Find affected companies and their stock tickers (if marketplace data installed)
-    4. Find related SEC filings (if marketplace data installed)
-    5. Read FULL PDF text of specific regulations for detailed analysis
 
-    When users ask for specifics (deadlines, exact requirements, detailed compliance info),
-    use get_full_regulation_text - the search abstracts won't have that level of detail.
+    OPTIONAL CAPABILITIES:
+    3. Find affected companies and stock tickers (requires Cybersyn marketplace data)
+    4. Find related SEC filings (requires Cybersyn marketplace data)
+    5. Read full PDF text (requires PDF upload to stage)
+
+    When users ask about companies or SEC filings and the tool fails, gracefully explain
+    that this feature requires installing free marketplace data from Cybersyn.
 
   sample_questions:
     - question: "What can you help me with?"
-      answer: "I help compliance teams monitor federal regulations. I can search regulations, analyze trends, and retrieve full details from regulation PDFs."
+      answer: "I help compliance teams monitor federal regulations. I can search regulations by topic, analyze trends over time, and retrieve detailed information from regulation PDFs. With optional marketplace data installed, I can also identify affected companies and find related SEC filings."
     - question: "Show me recent environmental regulations"
       answer: "I'll search for environmental regulations using my search tool."
     - question: "What are the compliance deadlines in regulation 2026-05312?"
@@ -289,15 +307,15 @@ tools:
   - tool_spec:
       type: cortex_analyst_text_to_sql
       name: get_industry_impact
-      description: "Find companies and stock tickers affected by regulations. Requires marketplace data."
+      description: "Find companies and stock tickers affected by regulations. OPTIONAL: requires Cybersyn marketplace data."
   - tool_spec:
       type: cortex_analyst_text_to_sql
       name: get_related_filings
-      description: "Find SEC filings (8-K, 10-K, 10-Q) from affected companies. Requires marketplace data."
+      description: "Find SEC filings (8-K, 10-K, 10-Q) from affected companies. OPTIONAL: requires Cybersyn marketplace data."
   - tool_spec:
       type: generic
       name: get_full_regulation_text
-      description: "Read the FULL PDF of a regulation and answer specific questions."
+      description: "Read full PDF of a regulation. Requires the PDF to be uploaded to the stage first."
       input_schema:
         type: object
         properties:
@@ -335,10 +353,10 @@ $$;
 -- SETUP COMPLETE
 -- ============================================================================
 -- Next steps:
---   1. Load data via Openflow (see optional/openflow/) OR sample data (optional/scripts/load_sample_data.sql)
+--   1. Set up Openflow (see 02_openflow/README.md) to start data ingestion
 --   2. (Optional) Install marketplace data for company/SEC enrichment (optional/marketplace/)
 --   3. (Optional) Deploy Streamlit dashboard (optional/streamlit/)
---   4. (Optional) Upload PDFs for deep-dive analysis (see README.md Section 5)
+--   4. (Optional) Upload PDFs for deep-dive analysis (see README.md)
 --
 -- Test your agent:
 --   SELECT SNOWFLAKE.CORTEX.AGENT(
