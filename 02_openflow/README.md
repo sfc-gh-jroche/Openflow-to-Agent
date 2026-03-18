@@ -40,17 +40,18 @@ Fetches regulations from the Federal Register API and streams them to Snowflake.
 
 ## Flow 2: PDF Download
 
-Downloads regulation PDFs and tracks them in Snowflake.
+Downloads regulation PDFs from govinfo.gov and uploads them directly to a Snowflake stage.
 
 ```
 ┌─────────────────────┐
-│  Trigger            │  GenerateFlowFile (every 1 hour)
+│  Trigger Daily      │  GenerateFlowFile (every 1 day)
 └──────────┬──────────┘
            │
            ▼
 ┌─────────────────────┐
 │  Get Regulations    │  InvokeHTTP
 │                     │  GET federalregister.gov/api/v1/documents.json
+│                     │  (fetches RULE and PRORULE types with pdf_url)
 └──────────┬──────────┘
            │
            ▼
@@ -61,13 +62,19 @@ Downloads regulation PDFs and tracks them in Snowflake.
            ▼
 ┌─────────────────────┐
 │  Extract Fields     │  EvaluateJsonPath
-│                     │  pdf_url, document_number → attributes
+│                     │  pdf_url, document_number, title → attributes
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Filter Has PDF     │  RouteOnAttribute
+│                     │  ${pdf_url:isEmpty():not()}
 └──────────┬──────────┘
            │
            ▼
 ┌─────────────────────┐
 │  Download PDF       │  InvokeHTTP
-│                     │  GET ${pdf_url}
+│                     │  GET ${pdf_url} (from www.govinfo.gov)
 └──────────┬──────────┘
            │
            ▼
@@ -78,18 +85,15 @@ Downloads regulation PDFs and tracks them in Snowflake.
            │
            ▼
 ┌─────────────────────┐
-│  Create Metadata    │  AttributesToJSON
-│                     │  {filename, document_number, pdf_url}
-└──────────┬──────────┘
-           │
-           ▼
-┌─────────────────────┐
-│  Write to Snowflake │  PutSnowpipeStreaming
-│                     │  → REG_INTEL.RAW.PDF_DOWNLOADS
+│  Upload to Stage    │  PutSnowflakeInternalStageFile
+│                     │  → @REG_INTEL.RAW.REGULATION_PDFS
 └─────────────────────┘
 ```
 
-**Note:** This flow tracks downloaded PDFs in a metadata table. For the PDFs to be usable by the agent's `get_full_regulation_text` tool, you would need to manually upload them to the `@REG_INTEL.RAW.REGULATION_PDFS` stage (or extend the flow to write to cloud storage).
+**Requirements:**
+- Network rule must include `www.govinfo.gov:443` (PDF download host)
+- Stage `@REG_INTEL.RAW.REGULATION_PDFS` must grant READ, WRITE to `OPENFLOW_REGINTEL_ROLE`
+- Runtime uses `SNOWFLAKE_SESSION_TOKEN` authentication
 
 ## Prerequisites
 
