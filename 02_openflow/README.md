@@ -33,10 +33,7 @@ This directory contains an **importable** NiFi flow definition for ingesting Fed
 
 Before importing the flow, ensure you have:
 
-1. **Created the database and table** by running:
-   - `sql/infrastructure/01_database_setup.sql`
-   - `sql/infrastructure/03_raw_table.sql`
-   - `sql/infrastructure/04_openflow_role.sql`
+1. **Created the database and table** by running `01_infrastructure/` scripts (or `setup_all.sql`)
 
 2. **Created an Openflow runtime** in Snowsight:
    - Go to: Data → Ingestion → Openflow

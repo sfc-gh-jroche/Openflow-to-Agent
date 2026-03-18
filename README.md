@@ -55,7 +55,7 @@ AI-powered platform for monitoring federal regulations, built on Snowflake. Demo
 
 1. **Snowflake Account** with:
    - Cortex AI functions enabled (most accounts have this)
-   - Openflow (optional - can manually load sample data)
+   - Openflow enabled
    - ACCOUNTADMIN or equivalent privileges
 
 2. **Snowflake Marketplace** (optional, for company enrichment):
@@ -67,9 +67,8 @@ AI-powered platform for monitoring federal regulations, built on Snowflake. Demo
 
 ### Option A: Run Everything at Once
 
-Open `setup_all.sql` in **Snowsight Workspaces** and click **Run All**.
-
-This creates all infrastructure, dynamic tables, search, analytics, and the agent in one go.
+1. Open `setup_all.sql` in **Snowsight Workspaces** and click **Run All**
+2. Set up Openflow (see Step 2 below)
 
 ### Option B: Run Step by Step
 
@@ -77,60 +76,67 @@ Use Workspaces to run files in numbered order:
 
 ```
 01_infrastructure/     ← Run first (database, schemas, roles)
-02_dynamic_tables/     ← Run second (Bronze → Silver → Gold pipeline)
-03_search_analytics/   ← Run third (Cortex Search + Semantic View)
-04_pdf_analysis/       ← Run fourth (PDF stage + AI function)
-05_agent/              ← Run fifth (Cortex Agent)
+02_openflow/           ← Create runtime + import flow (see instructions below)
+03_dynamic_tables/     ← Run third (Bronze → Silver → Gold pipeline)
+04_search_analytics/   ← Run fourth (Cortex Search + Semantic View)
+05_pdf_analysis/       ← Run fifth (PDF stage + AI function)
+06_agent/              ← Run sixth (Cortex Agent)
 ```
 
-> **Tip:** In Workspaces, navigate to each `.sql` file and click **Run All**. No copy-paste needed.
+## Step 2: Set Up Openflow
+
+After running infrastructure SQL, set up the data ingestion flow:
+
+1. **Create Openflow Runtime**
+   - Go to: Snowsight → Data → Ingestion → Openflow
+   - Click **+ Runtime**
+   - Name: `regintel`
+   - Size: **S**
+   - Role: `OPENFLOW_REGINTEL_ROLE`
+
+2. **Import the Flow**
+   - Click on the runtime to open it
+   - Right-click canvas → **Upload Flow Definition**
+   - Select `02_openflow/federal_register_flow.json`
+
+3. **Enable Controller Service**
+   - Right-click the Process Group → **Controller Services**
+   - Enable `JsonTreeReader` (click lightning bolt icon)
+
+4. **Start the Flow**
+   - Right-click the Process Group → **Start**
+
+Data will begin flowing into `REG_INTEL.RAW.RAW_REGULATIONS` within 1 minute.
 
 ## Project Structure
 
 ```
-├── setup_all.sql              # ⭐ Master script - runs everything
+├── setup_all.sql              # ⭐ Master SQL script (run first)
 ├── 01_infrastructure/         # Database, schemas, roles, network rules
 │   ├── 01_database_setup.sql
 │   ├── 02_network_eai.sql
 │   ├── 03_raw_table.sql
 │   └── 04_openflow_role.sql
-├── 02_dynamic_tables/         # Bronze → Silver → Gold pipeline
+├── 02_openflow/               # ⭐ Data ingestion (import into runtime)
+│   ├── federal_register_flow.json
+│   └── README.md
+├── 03_dynamic_tables/         # Bronze → Silver → Gold pipeline
 │   ├── 01_dt_reg_bronze.sql
 │   ├── 02_dt_reg_silver.sql
 │   └── 03_dt_reg_gold.sql
-├── 03_search_analytics/       # Cortex Search + Semantic View
+├── 04_search_analytics/       # Cortex Search + Semantic View
 │   ├── 01_cortex_search.sql
 │   └── 02_semantic_view.sql
-├── 04_pdf_analysis/           # PDF stage + AI Q&A function
+├── 05_pdf_analysis/           # PDF stage + AI Q&A function
 │   ├── 01_pdf_stage.sql
 │   └── 02_pdf_function.sql
-├── 05_agent/                  # Cortex Agent definition
+├── 06_agent/                  # Cortex Agent definition
 │   └── 01_cortex_agent.sql
 └── optional/
     ├── marketplace/           # Company/SEC enrichment (requires Cybersyn)
-    ├── openflow/              # Importable NiFi flow for data ingestion
     ├── streamlit/             # Dashboard application
     └── scripts/               # Sample data loader, verification
 ```
-
-## After Setup: Load Data
-
-Choose one of these options to get data into the platform:
-
-### Option 1: Openflow (Recommended for Production)
-
-1. Go to Snowsight → Data → Ingestion → Openflow
-2. Create runtime: `regintel` (S node, `OPENFLOW_REGINTEL_ROLE`)
-3. Click on the runtime to open it
-4. Right-click canvas → **Upload Flow Definition** → select `optional/openflow/federal_register_flow.json`
-5. Enable the JsonTreeReader controller service (right-click Process Group → Controller Services)
-6. Start the flow
-
-See `optional/openflow/README.md` for detailed instructions.
-
-### Option 2: Sample Data (Quick Demo)
-
-Run `optional/scripts/load_sample_data.sql` to insert sample regulations manually.
 
 ## Optional: PDF Analysis
 
@@ -165,6 +171,10 @@ For company impact analysis and SEC filings:
 1. Install **Cybersyn SEC Filings & Company Characteristics** from Snowflake Marketplace as `SNOWFLAKE_PUBLIC_DATA_FREE`
 2. Run scripts in `optional/marketplace/` in order
 
+This enables two additional agent tools:
+- `get_industry_impact` - Find affected companies by ticker
+- `get_related_filings` - Find SEC filings from affected companies
+
 ## Optional: Streamlit Dashboard
 
 1. Go to Snowsight → Projects → Streamlit
@@ -197,13 +207,13 @@ SELECT SNOWFLAKE.CORTEX.AGENT(
 
 ## Agent Capabilities
 
-| Tool | Type | Description |
-|------|------|-------------|
-| `search_regulations` | Cortex Search | Find regulations by topic/keyword |
-| `analyze_trends` | Cortex Analyst | Statistics, counts, trends over time |
-| `get_industry_impact` | Cortex Analyst | Find affected companies (requires marketplace) |
-| `get_related_filings` | Cortex Analyst | Find SEC filings (requires marketplace) |
-| `get_full_regulation_text` | Custom (UDF) | Read full PDF and answer questions |
+| Tool | Type | Description | Requires |
+|------|------|-------------|----------|
+| `search_regulations` | Cortex Search | Find regulations by topic/keyword | Core |
+| `analyze_trends` | Cortex Analyst | Statistics, counts, trends | Core |
+| `get_full_regulation_text` | Custom (UDF) | Read full PDF and answer questions | PDF upload |
+| `get_industry_impact` | Cortex Analyst | Find affected companies | Marketplace |
+| `get_related_filings` | Cortex Analyst | Find SEC filings | Marketplace |
 
 ## Data Source
 
