@@ -114,10 +114,16 @@ snow sql -f sql/pdf_analysis/01_pdf_stage.sql
 snow sql -f sql/pdf_analysis/02_pdf_function.sql
 ```
 
-Upload PDFs to the stage:
-```sql
-PUT file:///path/to/2026-05312.pdf @REG_INTEL.RAW.REGULATION_PDFS;
+Download and upload regulation PDFs:
+```bash
+# Download a PDF from Federal Register (replace YYYY-NNNNN with any document number)
+curl -o 2026-05312.pdf "https://www.govinfo.gov/content/pkg/FR-2026-03-18/pdf/2026-05312.pdf"
+
+# Upload to Snowflake stage (from SnowSQL or Snowsight)
+PUT file://2026-05312.pdf @REG_INTEL.RAW.REGULATION_PDFS AUTO_COMPRESS=FALSE;
 ```
+
+> **Tip:** Find document numbers by querying `REG_INTEL.ANALYTICS.DT_REG_GOLD` or browsing [federalregister.gov](https://www.federalregister.gov)
 
 ### 6. Create the Cortex Agent
 
