@@ -13,22 +13,19 @@ SELECT
   publication_date,
   agencies_json,
   html_url,
+  pdf_url,
   _ingested_at,
-  -- Extract first agency name
   agencies_json[0]:name::STRING AS agency_name,
-  -- AI Summary
   SNOWFLAKE.CORTEX.COMPLETE(
     'mistral-large2',
     'Summarize this regulation abstract in 2 sentences: ' || COALESCE(abstract, 'No abstract available')
   ) AS summary,
-  -- AI Entity Extraction
   TRY_PARSE_JSON(
     SNOWFLAKE.CORTEX.COMPLETE(
       'mistral-large2',
       'Extract from this text and return ONLY valid JSON with keys "industry", "affected_parties", "compliance_deadline". If not found, use null. Text: ' || COALESCE(abstract, 'No abstract')
     )
   ) AS extracted_entities,
-  -- AI Topic Classification
   SNOWFLAKE.CORTEX.CLASSIFY_TEXT(
     COALESCE(abstract, 'general'),
     ['environment', 'finance', 'healthcare', 'transportation', 'technology', 'labor', 'other']

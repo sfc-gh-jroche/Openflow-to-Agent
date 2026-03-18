@@ -14,7 +14,8 @@ SELECT
   ARRAY_AGG(OBJECT_CONSTRUCT(
     'document_number', document_number,
     'title', title, 
-    'summary', summary
+    'summary', summary,
+    'pdf_url', pdf_url
   )) AS regulations
 FROM REG_INTEL.CURATED.DT_REG_SILVER
 GROUP BY ALL;

@@ -13,6 +13,7 @@ SELECT
   r.value:publication_date::DATE AS publication_date,
   r.value:agencies AS agencies_json,
   r.value:html_url::STRING AS html_url,
+  r.value:pdf_url::STRING AS pdf_url,
   raw._ingested_at
 FROM REG_INTEL.RAW.RAW_REGULATIONS raw,
-  LATERAL FLATTEN(input => PARSE_JSON(raw.raw_json):results) r;
+  LATERAL FLATTEN(input => raw.raw_json:results) r;
