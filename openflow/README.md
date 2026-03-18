@@ -42,7 +42,7 @@ Before importing the flow, ensure you have:
    - Go to: Data → Ingestion → Openflow
    - Click **+ Runtime**
    - Name: `regintel` (or your choice)
-   - Size: XS
+   - Size: S
    - Role: `OPENFLOW_REGINTEL_ROLE` (created in step 1)
 
 ## Import Instructions

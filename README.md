@@ -158,7 +158,7 @@ Run: `cortex_agent/reg_intel_agent.sql`
 > **Note:** Openflow is optional. You can load sample data manually using `scripts/load_sample_data.sql` instead.
 
 1. Go to Snowsight → Data → Ingestion → Openflow
-2. Create runtime: `regintel` (XS node, `OPENFLOW_REGINTEL_ROLE`)
+2. Create runtime: `regintel` (S node, `OPENFLOW_REGINTEL_ROLE`)
 3. Click on the runtime to open it
 4. Right-click canvas → **Upload Flow Definition** → select `openflow/federal_register_flow.json`
 5. Enable the JsonTreeReader controller service (right-click Process Group → Controller Services)
