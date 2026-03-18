@@ -1,0 +1,211 @@
+{
+  "flowContents": {
+    "identifier": "federal-register-ingestion",
+    "name": "Federal Register Regulation Ingestion",
+    "comments": "Ingests regulations from Federal Register API into Snowflake every 6 hours",
+    "processGroups": [],
+    "remoteProcessGroups": [],
+    "processors": [
+      {
+        "identifier": "generate-trigger",
+        "name": "Generate API Trigger",
+        "type": "org.apache.nifi.processors.standard.GenerateFlowFile",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.0.0"
+        },
+        "properties": {
+          "generate-ff-custom-text": "",
+          "Batch Size": "1"
+        },
+        "schedulingStrategy": "CRON_DRIVEN",
+        "schedulingPeriod": "0 */6 * * *",
+        "position": {"x": 100, "y": 100}
+      },
+      {
+        "identifier": "fetch-regulations",
+        "name": "Fetch Federal Register API",
+        "type": "org.apache.nifi.processors.standard.InvokeHTTP",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.0.0"
+        },
+        "properties": {
+          "HTTP Method": "GET",
+          "Remote URL": "https://www.federalregister.gov/api/v1/documents.json?per_page=100&order=newest&conditions[type][]=Rule&conditions[type][]=Proposed+Rule&conditions[type][]=Notice&conditions[publication_date][gte]=${now():toNumber():minus(604800000):format('yyyy-MM-dd')}",
+          "Connection Timeout": "30 secs",
+          "Read Timeout": "60 secs",
+          "Include Date Header": "true",
+          "Follow Redirects": "true",
+          "Content-Type": "application/json"
+        },
+        "autoTerminatedRelationships": ["Retry", "No Retry", "Failure", "Original"],
+        "position": {"x": 400, "y": 100}
+      },
+      {
+        "identifier": "split-results",
+        "name": "Split JSON Results",
+        "type": "org.apache.nifi.processors.standard.SplitJson",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.0.0"
+        },
+        "properties": {
+          "JsonPath Expression": "$.results[*]"
+        },
+        "autoTerminatedRelationships": ["failure", "original"],
+        "position": {"x": 700, "y": 100}
+      },
+      {
+        "identifier": "extract-fields",
+        "name": "Extract Document Fields",
+        "type": "org.apache.nifi.processors.standard.EvaluateJsonPath",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.0.0"
+        },
+        "properties": {
+          "Destination": "flowfile-attribute",
+          "document_number": "$.document_number",
+          "title": "$.title",
+          "type": "$.type",
+          "abstract": "$.abstract",
+          "publication_date": "$.publication_date",
+          "agencies": "$.agencies[*].name",
+          "html_url": "$.html_url",
+          "pdf_url": "$.pdf_url"
+        },
+        "autoTerminatedRelationships": ["failure", "unmatched"],
+        "position": {"x": 1000, "y": 100}
+      },
+      {
+        "identifier": "write-to-snowflake",
+        "name": "Write to Snowflake",
+        "type": "com.snowflake.nifi.processors.PutSnowpipeStreaming",
+        "bundle": {
+          "group": "com.snowflake",
+          "artifact": "nifi-snowflake-nar",
+          "version": "1.0.0"
+        },
+        "properties": {
+          "Snowflake Account URL": "${SNOWFLAKE_ACCOUNT_URL}",
+          "Snowflake User": "${SNOWFLAKE_USER}",
+          "Snowflake Private Key": "${SNOWFLAKE_PRIVATE_KEY}",
+          "Snowflake Database": "REG_INTEL",
+          "Snowflake Schema": "RAW",
+          "Snowflake Table": "RAW_REGULATIONS",
+          "Snowflake Warehouse": "COMPUTE_WH",
+          "Snowflake Role": "OPENFLOW_REGINTEL_ROLE",
+          "Column Mapping": "raw_json=${flowfile.content}"
+        },
+        "position": {"x": 1300, "y": 100}
+      },
+      {
+        "identifier": "fetch-pdf",
+        "name": "Fetch PDF Document",
+        "type": "org.apache.nifi.processors.standard.InvokeHTTP",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.0.0"
+        },
+        "properties": {
+          "HTTP Method": "GET",
+          "Remote URL": "${pdf_url}",
+          "Connection Timeout": "30 secs",
+          "Read Timeout": "120 secs"
+        },
+        "autoTerminatedRelationships": ["Retry", "No Retry", "Failure", "Original"],
+        "position": {"x": 1000, "y": 300}
+      },
+      {
+        "identifier": "write-pdf-to-stage",
+        "name": "Write PDF to Snowflake Stage",
+        "type": "com.snowflake.nifi.processors.PutSnowflakeStage",
+        "bundle": {
+          "group": "com.snowflake",
+          "artifact": "nifi-snowflake-nar",
+          "version": "1.0.0"
+        },
+        "properties": {
+          "Snowflake Account URL": "${SNOWFLAKE_ACCOUNT_URL}",
+          "Snowflake User": "${SNOWFLAKE_USER}",
+          "Snowflake Private Key": "${SNOWFLAKE_PRIVATE_KEY}",
+          "Snowflake Database": "REG_INTEL",
+          "Snowflake Schema": "RAW",
+          "Stage Name": "REGULATION_PDFS",
+          "Snowflake Warehouse": "COMPUTE_WH",
+          "Snowflake Role": "OPENFLOW_REGINTEL_ROLE",
+          "Filename": "${document_number}.pdf"
+        },
+        "position": {"x": 1300, "y": 300}
+      }
+    ],
+    "connections": [
+      {
+        "identifier": "conn-1",
+        "name": "trigger-to-fetch",
+        "source": {"id": "generate-trigger", "type": "PROCESSOR"},
+        "destination": {"id": "fetch-regulations", "type": "PROCESSOR"},
+        "selectedRelationships": ["success"]
+      },
+      {
+        "identifier": "conn-2",
+        "name": "fetch-to-split",
+        "source": {"id": "fetch-regulations", "type": "PROCESSOR"},
+        "destination": {"id": "split-results", "type": "PROCESSOR"},
+        "selectedRelationships": ["Response"]
+      },
+      {
+        "identifier": "conn-3",
+        "name": "split-to-extract",
+        "source": {"id": "split-results", "type": "PROCESSOR"},
+        "destination": {"id": "extract-fields", "type": "PROCESSOR"},
+        "selectedRelationships": ["split"]
+      },
+      {
+        "identifier": "conn-4",
+        "name": "extract-to-snowflake",
+        "source": {"id": "extract-fields", "type": "PROCESSOR"},
+        "destination": {"id": "write-to-snowflake", "type": "PROCESSOR"},
+        "selectedRelationships": ["matched"]
+      },
+      {
+        "identifier": "conn-5",
+        "name": "extract-to-pdf-fetch",
+        "source": {"id": "extract-fields", "type": "PROCESSOR"},
+        "destination": {"id": "fetch-pdf", "type": "PROCESSOR"},
+        "selectedRelationships": ["matched"]
+      },
+      {
+        "identifier": "conn-6",
+        "name": "pdf-to-stage",
+        "source": {"id": "fetch-pdf", "type": "PROCESSOR"},
+        "destination": {"id": "write-pdf-to-stage", "type": "PROCESSOR"},
+        "selectedRelationships": ["Response"]
+      }
+    ],
+    "inputPorts": [],
+    "outputPorts": [],
+    "labels": [
+      {
+        "identifier": "label-1",
+        "label": "Federal Register API Ingestion\n\nFetches regulations every 6 hours:\n- Rules\n- Proposed Rules\n- Notices\n\nWrites JSON to RAW_REGULATIONS table\nWrites PDFs to REGULATION_PDFS stage",
+        "position": {"x": 100, "y": 0},
+        "width": 400,
+        "height": 80
+      }
+    ],
+    "funnels": [],
+    "controllerServices": []
+  },
+  "snapshotMetadata": {
+    "flowIdentifier": "federal-register-ingestion",
+    "version": 1,
+    "timestamp": 1710720000000
+  }
+}

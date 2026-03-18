@@ -1,0 +1,12 @@
+definition_version: 2
+entities:
+  reg_intel_dashboard:
+    type: streamlit
+    identifier:
+      name: REG_INTEL_DASHBOARD
+      database: REG_INTEL
+      schema: ANALYTICS
+    query_warehouse: COMPUTE_WH
+    main_file: streamlit_app.py
+    artifacts:
+      - streamlit_app.py
