@@ -85,7 +85,9 @@ Use Workspaces to run files in numbered order:
 
 ## Step 2: Set Up Openflow
 
-After running infrastructure SQL, set up the data ingestion flow:
+After running infrastructure SQL, set up the data ingestion flows:
+
+### Runtime 1: Federal Register Metadata (`regintel`)
 
 1. **Create Openflow Runtime**
    - Go to: Snowsight → Data → Ingestion → Openflow
@@ -93,6 +95,7 @@ After running infrastructure SQL, set up the data ingestion flow:
    - Name: `regintel`
    - Size: **S**
    - Role: `OPENFLOW_REGINTEL_ROLE`
+   - External Access Integration: `REG_INTEL_FEDERAL_REGISTER_EAI`
 
 2. **Import the Flow**
    - Click on the runtime to open it
@@ -108,6 +111,30 @@ After running infrastructure SQL, set up the data ingestion flow:
 
 Data will begin flowing into `REG_INTEL.RAW.RAW_REGULATIONS` within 1 minute.
 
+### Runtime 2: PDF Download (`regintel_pdf_runtime`)
+
+1. **Create Openflow Runtime**
+   - Go to: Snowsight → Data → Ingestion → Openflow
+   - Click **+ Runtime**
+   - Name: `regintel_pdf_runtime`
+   - Size: **S**
+   - Role: `OPENFLOW_REGINTEL_ROLE`
+   - External Access Integration: `REG_INTEL_FEDERAL_REGISTER_EAI`
+
+2. **Import the Flow**
+   - Click on the runtime to open it
+   - Right-click canvas → **Upload Flow Definition**
+   - Select `02_openflow/pdf_download_flow.json`
+
+3. **Enable Controller Service**
+   - Right-click the Process Group → **Controller Services**
+   - Enable `Snowflake Connection` (click lightning bolt icon)
+
+4. **Start the Flow**
+   - Right-click the Process Group → **Start**
+
+PDFs will be downloaded daily to `@REG_INTEL.RAW.REGULATION_PDFS`.
+
 ## Project Structure
 
 ```
@@ -117,8 +144,9 @@ Data will begin flowing into `REG_INTEL.RAW.RAW_REGULATIONS` within 1 minute.
 │   ├── 02_network_eai.sql
 │   ├── 03_raw_table.sql
 │   └── 04_openflow_role.sql
-├── 02_openflow/               # ⭐ Data ingestion (import into runtime)
-│   ├── federal_register_flow.json
+├── 02_openflow/               # ⭐ Data ingestion (import into runtimes)
+│   ├── federal_register_flow.json   # Metadata flow → regintel runtime
+│   ├── pdf_download_flow.json       # PDF flow → regintel_pdf_runtime
 │   └── README.md
 ├── 03_dynamic_tables/         # Bronze → Silver → Gold pipeline
 │   ├── 01_dt_reg_bronze.sql
@@ -138,25 +166,18 @@ Data will begin flowing into `REG_INTEL.RAW.RAW_REGULATIONS` within 1 minute.
     └── scripts/               # Sample data loader, verification
 ```
 
-## Optional: PDF Analysis
+## Optional: Manual PDF Upload
 
-Upload regulation PDFs to enable deep-dive questions like "What are the compliance deadlines?"
+The `regintel_pdf_runtime` flow automatically downloads PDFs daily. For manual uploads:
 
-1. Find a document number:
-   ```sql
-   SELECT document_number, title, pdf_url 
-   FROM REG_INTEL.CURATED.DT_REG_SILVER
-   WHERE pdf_url IS NOT NULL LIMIT 10;
-   ```
+1. Download the PDF from Federal Register
 
-2. Download the PDF from Federal Register
-
-3. Upload via Snowsight:
+2. Upload via Snowsight:
    - Navigate to: Data → Databases → REG_INTEL → RAW → Stages → REGULATION_PDFS
    - Click **+ Files** → Upload your PDF
    - Filename must match document number (e.g., `2026-05312.pdf`)
 
-4. Test:
+3. Test:
    ```sql
    SELECT REG_INTEL.ANALYTICS.ASK_REGULATION_PDF(
        '2026-05312',
