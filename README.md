@@ -8,9 +8,9 @@ AI-powered platform for monitoring federal regulations, built on Snowflake. Demo
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              DATA INGESTION                                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  Openflow (NiFi)                                                            │
-│  ├── Federal Register API ──► RAW_REGULATIONS (JSON)                       │
-│  └── PDF Documents ──────────► @REGULATION_PDFS (Stage)                    │
+│  Openflow (NiFi)              │  Manual Upload                              │
+│  └── Federal Register API     │  └── PDF Documents                          │
+│      ──► RAW_REGULATIONS      │      ──► @REGULATION_PDFS (Stage)           │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
@@ -107,18 +107,45 @@ Run these files:
 
 ### 5. PDF Analysis (Optional)
 
-Run these files:
-1. `sql/pdf_analysis/01_pdf_stage.sql` - Create stage for PDFs
-2. `sql/pdf_analysis/02_pdf_function.sql` - AI Q&A function
+This enables the agent to read full regulation PDFs and answer detailed questions about them.
 
-To upload PDFs, download from Federal Register and use Snowsight's data upload:
+**Step 1: Create the stage and function**
+
+Run these files in order:
+1. `sql/pdf_analysis/01_pdf_stage.sql` - Creates internal stage for PDFs
+2. `sql/pdf_analysis/02_pdf_function.sql` - Creates AI Q&A function using `AI_COMPLETE` with `TO_FILE`
+
+**Step 2: Upload regulation PDFs**
+
+PDFs must be named with the document number (e.g., `2026-05312.pdf`) to match regulations in your data.
+
+1. Find a document number:
+   ```sql
+   SELECT document_number, title, pdf_url 
+   FROM REG_INTEL.ANALYTICS.DT_REG_GOLD 
+   WHERE pdf_url IS NOT NULL 
+   LIMIT 10;
+   ```
+
+2. Download the PDF from Federal Register:
+   - URL format: `https://www.govinfo.gov/content/pkg/FR-YYYY-MM-DD/pdf/DOCUMENT_NUMBER.pdf`
+   - Or use the `pdf_url` from the query above
+
+3. Upload via Snowsight:
+   - Navigate to: Data → Databases → REG_INTEL → RAW → Stages → REGULATION_PDFS
+   - Click **+ Files** → Upload your PDF(s)
+   - Ensure filename matches document number (e.g., `2026-05312.pdf`)
+
+**Step 3: Test the function**
+
 ```sql
--- Find a document number from your data
-SELECT document_number, title FROM REG_INTEL.ANALYTICS.DT_REG_GOLD LIMIT 10;
-
--- Download PDF from: https://www.govinfo.gov/content/pkg/FR-YYYY-MM-DD/pdf/DOCUMENT_NUMBER.pdf
--- Then upload via Snowsight: Data → Databases → REG_INTEL → RAW → Stages → REGULATION_PDFS → Upload
+SELECT REG_INTEL.ANALYTICS.ASK_REGULATION_PDF(
+    '2026-05312',  -- document number (must match uploaded filename)
+    'What are the key compliance deadlines?'
+);
 ```
+
+> **Note:** The agent's `get_full_regulation_text` tool uses this function. Once PDFs are uploaded, the agent can answer questions like "What are the safety requirements in regulation 2026-05312?"
 
 ### 6. Create the Cortex Agent
 
@@ -132,9 +159,12 @@ Run: `cortex_agent/reg_intel_agent.sql`
 
 1. Go to Snowsight → Data → Ingestion → Openflow
 2. Create runtime: `regintel` (XS node, `OPENFLOW_REGINTEL_ROLE`)
-3. Import `openflow/federal_register_flow.json` (or recreate from reference - see `openflow/README.md`)
-4. Configure Snowflake credentials in the flow
-5. Start the flow
+3. Click on the runtime to open it
+4. Right-click canvas → **Upload Flow Definition** → select `openflow/federal_register_flow.json`
+5. Enable the JsonTreeReader controller service (right-click Process Group → Controller Services)
+6. Start the flow (right-click Process Group → Start)
+
+See `openflow/README.md` for detailed instructions and troubleshooting.
 
 ### 8. Deploy Streamlit Dashboard
 
@@ -173,7 +203,7 @@ Run: `cortex_agent/reg_intel_agent.sql`
 ├── cortex_agent/
 │   └── reg_intel_agent.sql            # 5-tool Cortex Agent
 ├── openflow/
-│   ├── federal_register_flow.json     # NiFi flow definition
+│   ├── federal_register_flow.json     # Importable NiFi flow definition
 │   └── README.md                      # Openflow setup guide
 ├── streamlit/
 │   ├── streamlit_app.py               # Dashboard application
