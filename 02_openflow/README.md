@@ -1,8 +1,17 @@
-# Openflow Flow Definition
+# Openflow Flow Definitions
 
-This directory contains an **importable** NiFi flow definition for ingesting Federal Register regulations into Snowflake.
+This directory contains **importable** NiFi flow definitions for the Regulatory Intelligence platform.
 
-## Flow Overview
+## Flows
+
+| Flow | File | Purpose | Runtime |
+|------|------|---------|---------|
+| Federal Register Ingestion | `federal_register_flow.json` | Ingest regulations from Federal Register API | `regintel` |
+| PDF Download | `pdf_download_flow.json` | Download regulation PDFs | `regintel_pdf_runtime` |
+
+## Flow 1: Federal Register Ingestion
+
+Fetches regulations from the Federal Register API and streams them to Snowflake.
 
 ```
 ┌─────────────────────┐
@@ -29,86 +38,106 @@ This directory contains an **importable** NiFi flow definition for ingesting Fed
 └─────────────────────┘
 ```
 
+## Flow 2: PDF Download
+
+Downloads regulation PDFs and tracks them in Snowflake.
+
+```
+┌─────────────────────┐
+│  Trigger            │  GenerateFlowFile (every 1 hour)
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Get Regulations    │  InvokeHTTP
+│                     │  GET federalregister.gov/api/v1/documents.json
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Split Results      │  SplitJson → $.results[*]
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Extract Fields     │  EvaluateJsonPath
+│                     │  pdf_url, document_number → attributes
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Download PDF       │  InvokeHTTP
+│                     │  GET ${pdf_url}
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Set Filename       │  UpdateAttribute
+│                     │  filename = ${document_number}.pdf
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Create Metadata    │  AttributesToJSON
+│                     │  {filename, document_number, pdf_url}
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Write to Snowflake │  PutSnowpipeStreaming
+│                     │  → REG_INTEL.RAW.PDF_DOWNLOADS
+└─────────────────────┘
+```
+
+**Note:** This flow tracks downloaded PDFs in a metadata table. For the PDFs to be usable by the agent's `get_full_regulation_text` tool, you would need to manually upload them to the `@REG_INTEL.RAW.REGULATION_PDFS` stage (or extend the flow to write to cloud storage).
+
 ## Prerequisites
 
-Before importing the flow, ensure you have:
+Before importing the flows, ensure you have:
 
-1. **Created the database and table** by running `01_infrastructure/` scripts (or `setup_all.sql`)
+1. **Run the infrastructure SQL** (`setup_all.sql` or `01_infrastructure/`)
 
-2. **Created an Openflow runtime** in Snowsight:
+2. **Created Openflow runtimes** in Snowsight:
    - Go to: Data → Ingestion → Openflow
    - Click **+ Runtime**
-   - Name: `regintel` (or your choice)
-   - Size: S
-   - Role: `OPENFLOW_REGINTEL_ROLE` (created in step 1)
+   
+   For Federal Register flow:
+   - Name: `regintel`
+   - Size: **S**
+   - Role: `OPENFLOW_REGINTEL_ROLE`
+   
+   For PDF Download flow:
+   - Name: `regintel_pdf_runtime`
+   - Size: **S**
+   - Role: `OPENFLOW_REGINTEL_ROLE`
 
 ## Import Instructions
 
-### Option 1: Import via Snowsight UI
+### Via Snowsight UI
 
 1. Go to: Data → Ingestion → Openflow
 2. Click on your runtime to open it
 3. Right-click on the canvas → **Upload Flow Definition**
-4. Select `federal_register_flow.json`
+4. Select the appropriate `.json` file
 5. The flow will be created as a new Process Group
 
-### Option 2: Import via nipyapi CLI
+### Via nipyapi CLI
 
 ```bash
 nipyapi --profile <your-profile> ci import_flow_definition \
-  --file_path openflow/federal_register_flow.json
+  --file_path 02_openflow/federal_register_flow.json
 ```
 
 ## Post-Import Configuration
 
 After importing, you may need to:
 
-1. **Verify the PutSnowpipeStreaming processor settings:**
-   - Database: `REG_INTEL`
-   - Schema: `RAW`
-   - Table: `RAW_REGULATIONS`
-   - Role: `OPENFLOW_REGINTEL_ROLE`
-   - Authentication Strategy: `SNOWFLAKE_SESSION_TOKEN`
-
-2. **Enable the JsonTreeReader controller service:**
+1. **Enable Controller Services:**
    - Right-click on the Process Group → **Controller Services**
-   - Enable the `JsonTreeReader` service
+   - Enable the `JsonTreeReader` service (click lightning bolt icon)
 
-3. **Start the flow:**
+2. **Start the flow:**
    - Right-click on the Process Group → **Start**
-
-## Flow Components
-
-| Processor | Type | Purpose |
-|-----------|------|---------|
-| Trigger | GenerateFlowFile | Triggers API call every 1 minute |
-| Call Federal Register API | InvokeHTTP | Fetches latest 100 regulations |
-| Wrap as RAW_JSON | JoltTransformJSON | Wraps response for VARIANT storage |
-| Write to Snowflake | PutSnowpipeStreaming | Streams to Snowflake table |
-
-| Controller Service | Type | Purpose |
-|-------------------|------|---------|
-| JsonTreeReader | JsonTreeReader | Parses JSON with schema inference |
-
-## Customization
-
-### Change the polling frequency
-
-Edit the **Trigger** processor:
-- `Scheduling Period`: Default is `1 min`
-- For daily polling, change to `1 day` or use CRON: `0 0 6 * * ?` (6 AM daily)
-
-### Change the API query
-
-Edit the **Call Federal Register API** processor:
-- `HTTP URL`: Modify query parameters as needed
-- See [Federal Register API docs](https://www.federalregister.gov/developers/documentation/api/v1)
-
-### Change the destination table
-
-Edit the **Write to Snowflake** processor:
-- `Database`, `Schema`, `Table`: Your target location
-- `Role`: A role with write access to the table
 
 ## Troubleshooting
 
@@ -126,6 +155,6 @@ Check that the JsonTreeReader controller service is enabled:
 
 ### Authentication errors
 
-The flow uses `SNOWFLAKE_SESSION_TOKEN` which inherits credentials from the Openflow runtime. Ensure:
+The flows use `SNOWFLAKE_SESSION_TOKEN` which inherits credentials from the Openflow runtime. Ensure:
 - The runtime role (`OPENFLOW_REGINTEL_ROLE`) has necessary grants
 - The runtime is running and healthy
