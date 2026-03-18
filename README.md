@@ -71,7 +71,13 @@ AI-powered platform for monitoring federal regulations, built on Snowflake. Demo
 
 ## Quick Start
 
-Run each SQL file in **Snowsight** (Worksheets → + → SQL Worksheet → paste contents → Run All).
+Run each SQL file in **Snowsight Workspaces**:
+1. Clone this repo locally
+2. Go to Snowsight → Projects → Workspaces
+3. Click **+ Workspace** → **From Git Repository** or drag-and-drop the folder
+4. Navigate to each `.sql` file and click **Run All**
+
+> **Tip:** Workspaces can run `.sql` files directly—no copy-paste needed like Worksheets.
 
 ### 1. Infrastructure Setup
 
